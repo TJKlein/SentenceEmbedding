@@ -3,7 +3,7 @@
 Simple and lean implementation for computing sentence embeddings for different transformer-based models. BERT-flow implementation based on the code from [repository](https://github.com/UKPLab/pytorch-bertflow). Contrastive tension implementation based on the implementation of [Sentence Transformers](https://github.com/UKPLab/sentence-transformers).
 
 Among other thins changes comprise:
-* Added monitoring (Weights and Biases)
+* Added monitoring ([Weights and Biases](https://wandb.ai), which of course can be replaced by any other monitorsing service)
 * Added evaluation ([SentEval](https://github.com/facebookresearch/SentEval)) script
 
 ## Usage:

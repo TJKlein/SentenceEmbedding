@@ -27,7 +27,7 @@ sh eval_flow.sh <path to BERT-flow model>
 
 ### BERT Contrastive Tension Training 
 
-Training a bert-base-uncased BERT-flow model using some training text file text_file.txt
+Training a bert-base-uncased contrastive tensions model using some training text file text_file.txt
 ```
 python train_ct.py --model_name_or_path bert-base-uncased --train_file text_file.txt --output_dir result --num_train_epochs 1 --max_seq_length 512 --per_device_train_batch_size 64
 ```

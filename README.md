@@ -13,7 +13,7 @@ Among other thins changes comprise:
 
 Training a bert-base-uncased BERT-flow model using some training text file text_file.txt
 ```
-python train.py --model_name_or_path bert-base-uncased --train_file text_file.txt --output_dir result --num_train_epochs 1 --max_seq_length 512 --per_device_train_batch_size 64
+python train_flow.py --model_name_or_path bert-base-uncased --train_file text_file.txt --output_dir result --num_train_epochs 1 --max_seq_length 512 --per_device_train_batch_size 64
 ```
 
 ### BERT-flow Evaluation
@@ -21,5 +21,22 @@ python train.py --model_name_or_path bert-base-uncased --train_file text_file.tx
 Running evaluation on [SentEval](https://github.com/facebookresearch/SentEval), simply provide the path of the model trained in the previous script to the evaluation shells script:
 
 ```
-sh eval.sh <path to BERT-flow model>
+sh eval_flow.sh <path to BERT-flow model>
 ```
+
+
+### BERT Contrastive Tension Training 
+
+Training a bert-base-uncased BERT-flow model using some training text file text_file.txt
+```
+python train_ct.py --model_name_or_path bert-base-uncased --train_file text_file.txt --output_dir result --num_train_epochs 1 --max_seq_length 512 --per_device_train_batch_size 64
+```
+
+### BERT Contrastive Tensions Evaluation
+
+Running evaluation on [SentEval](https://github.com/facebookresearch/SentEval), simply provide the path of the model trained in the previous script to the evaluation shells script:
+
+```
+sh eval_ct.sh <path to contrastive tensions model>
+```
+

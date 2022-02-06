@@ -6,8 +6,8 @@ import argparse
 from prettytable import PrettyTable
 import torch
 import transformers
-from sentence_transformers import SentenceTransformer, LoggingHandler, models, util, InputExample
-
+from sentence_transformers import LoggingHandler, models, util, InputExample
+from SentenceTransformer import SentenceTransformer
 # Set up logger
 logging.basicConfig(format='%(asctime)s : %(message)s', level=logging.DEBUG)
 

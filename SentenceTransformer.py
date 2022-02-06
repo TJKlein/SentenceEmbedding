@@ -28,7 +28,7 @@ from sentence_transformers.models import Transformer, Pooling, Dense
 from sentence_transformers.model_card_templates import ModelCardTemplate
 #from SentenceTransformer import __version__
 
-__version__ = 0.1
+__version__ = "0.1"
 
 logger = logging.getLogger(__name__)
 
@@ -795,7 +795,7 @@ class SentenceTransformer(nn.Sequential):
             with open(config_sentence_transformers_json_path) as fIn:
                 self._model_config = json.load(fIn)
 
-            if '__version__' in self._model_config and 'sentence_transformers' in self._model_config['__version__'] and self._model_config['__version__']['sentence_transformers'] > __version__:
+            if '__version__' in self._model_config and 'sentence_transformers' in self._model_config['__version__'] and str(self._model_config['__version__']['sentence_transformers']) > __version__:
                 logger.warning("You try to use a model that was created with version {}, however, your version is {}. This might cause unexpected behavior or errors. In that case, try to update to the latest version.\n\n\n".format(self._model_config['__version__']['sentence_transformers'], __version__))
 
         # Check if a readme exists

@@ -224,7 +224,7 @@ if __name__ == '__main__':
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
-            wandb.log({'loss': loss.item()})
+            wandb.log({'train/loss': loss.item()})
 
             if global_steps % FLAGS.eval_steps == 1 and global_steps > 1:
 
@@ -278,8 +278,8 @@ if __name__ == '__main__':
 
                 stsb_spearman = results['STSBenchmark']['dev']['spearman'][0]
                 sickr_spearman = results['SICKRelatedness']['dev']['spearman'][0]
-                wandb.log({"eval_stsb_spearman": stsb_spearman,
-                          "eval_sickr_spearman": sickr_spearman, "eval_avg_sts": (stsb_spearman + sickr_spearman) / 2})
+                wandb.log({"eval/stsb_spearman": stsb_spearman,
+                          "eval/sickr_spearman": sickr_spearman, "eval/avg_sts": (stsb_spearman + sickr_spearman) / 2})
                 metrics = {"eval_stsb_spearman": stsb_spearman,
                           "eval_sickr_spearman": sickr_spearman, "eval_avg_sts": (stsb_spearman + sickr_spearman) / 2}
 

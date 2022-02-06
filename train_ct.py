@@ -42,6 +42,10 @@ parser.add_argument('--max_seq_length', type=int, default=32, help='Input max se
 parser.add_argument('--overwrite_output_dir', type=bool, default=True, help="If data in output directory should be overwritten if already existing.")
 parser.add_argument('--learning_rate', type=float,
                     default=1e-5, help='SGD learning rate')
+parser.add_argument("--pooler", type=str,
+                        choices=['mean', 'max', 'cls'],
+                    default='mean',
+                        help="Which pooler to use")
 parser.add_argument('--num_train_epochs', type=int, default=3,
                     help='Number of trainin epochs')
 parser.add_argument('--per_device_train_batch_size', type=int, default=64, help='Batch size for training')
@@ -110,11 +114,14 @@ class SentEvalSimilarityEvaluator(SentenceEvaluator):
 
         stsb_spearman = results['STSBenchmark']['dev']['spearman'][0]
         sickr_spearman = results['SICKRelatedness']['dev']['spearman'][0]
-        wandb.log({"eval_stsb_spearman": stsb_spearman,
-                  "eval_sickr_spearman": sickr_spearman, "eval_avg_sts": (stsb_spearman + sickr_spearman) / 2})
+        
         metrics = {"eval_stsb_spearman": stsb_spearman,
                   "eval_sickr_spearman": sickr_spearman, "eval_avg_sts": (stsb_spearman + sickr_spearman) / 2}
+        
+        log_metrics = {"eval/stsb_spearman": stsb_spearman,
+                  "eval/sickr_spearman": sickr_spearman, "eval/avg_sts": (stsb_spearman + sickr_spearman) / 2}
 
+        wandb.log(log_metrics)
         # Determine the new best metric / best model checkpoint
         if metrics is not None and self.FLAGS.metric_for_best_model is not None:
             metric_to_check = self.FLAGS.metric_for_best_model
@@ -212,7 +219,7 @@ if __name__ == '__main__':
 
     ################# Intialize an SBERT model #################
     word_embedding_model = models.Transformer(FLAGS.model_name_or_path, max_seq_length=FLAGS.max_seq_length)
-    pooling_model = models.Pooling(word_embedding_model.get_word_embedding_dimension())
+    pooling_model = models.Pooling(word_embedding_model.get_word_embedding_dimension(), pooling_mode=FLAGS.pooler)
     model = SentenceTransformer(modules=[word_embedding_model, pooling_model])
 
 

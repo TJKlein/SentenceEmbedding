@@ -20,7 +20,7 @@ import math
 import queue
 import tempfile
 from distutils.dir_util import copy_tree
-
+import wandb
 from sentence_transformers import __MODEL_HUB_ORGANIZATION__
 from sentence_transformers.evaluation import SentenceEvaluator
 from sentence_transformers.util import import_from_string, batch_to_device, fullname, snapshot_download
@@ -665,7 +665,7 @@ class SentenceTransformer(nn.Sequential):
                 loss_model.zero_grad()
                 loss_model.train()
 
-            for _ in trange(steps_per_epoch, desc="Iteration", smoothing=0.05, disable=not show_progress_bar):
+            for _ in trange(steps_per_epoch, desc="Iteration", smoothing=0.05, disable=True):
                 for train_idx in range(num_train_objectives):
                     loss_model = loss_models[train_idx]
                     optimizer = optimizers[train_idx]
@@ -687,6 +687,7 @@ class SentenceTransformer(nn.Sequential):
                         with autocast():
                             loss_value = loss_model(features, labels)
 
+                        wandb.log({'train/loss': loss_value.item()})
                         scale_before_step = scaler.get_scale()
                         scaler.scale(loss_value).backward()
                         scaler.unscale_(optimizer)
@@ -698,6 +699,7 @@ class SentenceTransformer(nn.Sequential):
                     else:
                         loss_value = loss_model(features, labels)
                         loss_value.backward()
+                        wandb.log({'train/loss': loss_value.item()})
                         torch.nn.utils.clip_grad_norm_(loss_model.parameters(), max_grad_norm)
                         optimizer.step()
 

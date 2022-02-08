@@ -23,8 +23,8 @@ from distutils.dir_util import copy_tree
 import wandb
 from sentence_transformers import __MODEL_HUB_ORGANIZATION__
 from sentence_transformers.evaluation import SentenceEvaluator
-from sentence_transformers.util import import_from_string, batch_to_device, fullname, snapshot_download
-from sentence_transformers.models import Transformer, Pooling, Dense
+from util import import_from_string, batch_to_device, fullname, snapshot_download
+from models import Transformer, Pooling
 from sentence_transformers.model_card_templates import ModelCardTemplate
 #from SentenceTransformer import __version__
 
@@ -816,7 +816,12 @@ class SentenceTransformer(nn.Sequential):
 
         modules = OrderedDict()
         for module_config in modules_config:
-            module_class = import_from_string(module_config['type'])
+            
+            module = module_config['type']
+            if module.find(".") == -1:
+                module = "models." + module
+                print("Fixing module path: "+module)
+            module_class = import_from_string(module)
             module = module_class.load(os.path.join(model_path, module_config['path']))
             modules[module_config['name']] = module
 

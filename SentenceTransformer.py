@@ -23,8 +23,9 @@ from distutils.dir_util import copy_tree
 import wandb
 from sentence_transformers import __MODEL_HUB_ORGANIZATION__
 from sentence_transformers.evaluation import SentenceEvaluator
-from util import import_from_string, batch_to_device, fullname, snapshot_download
-from models import Transformer, Pooling
+from sentence_transformers.util import import_from_string, batch_to_device, fullname, snapshot_download
+from models.Transformer import Transformer
+from models.Pooling import Pooling
 from sentence_transformers.model_card_templates import ModelCardTemplate
 #from SentenceTransformer import __version__
 

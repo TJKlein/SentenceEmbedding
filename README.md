@@ -8,6 +8,11 @@ Among other thins changes comprise:
 
 ## Usage:
 
+### Instalation of requirements
+
+```
+pip install -r requirements.txt
+```
 
 ### BERT-flow Training 
 

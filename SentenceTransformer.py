@@ -666,7 +666,8 @@ class SentenceTransformer(nn.Sequential):
                 loss_model.zero_grad()
                 loss_model.train()
 
-            for _ in trange(steps_per_epoch, desc="Iteration", smoothing=0.05,  disable=steps_per_epoch<25):
+            for _ in trange(steps_per_epoch, desc="Iteration", smoothing=0.05, disable=steps_per_epoch<25):
+
                 for train_idx in range(num_train_objectives):
                     loss_model = loss_models[train_idx]
                     optimizer = optimizers[train_idx]

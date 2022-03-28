@@ -1,6 +1,11 @@
 #!/usr/bin/env python
 import os
 import sys
+PATH_TO_SENTEVAL = './SentEval'
+PATH_TO_DATA = './SentEval/data'
+# Import SentEval
+sys.path.insert(0, PATH_TO_SENTEVAL)
+import senteval
 import pdb
 import time
 import random
@@ -12,11 +17,9 @@ import torch
 import torch.optim as optim
 from torch.optim import Adam, Adadelta, Adamax, Adagrad, RMSprop, Rprop, SGD
 from torch.cuda.amp import autocast, GradScaler
-from pytorch_metric_learning import samplers
 from transformers import AutoTokenizer, AutoModel
 from tqdm import tqdm
 import wandb
-wandb.init(project="mirror-bert")
 
 # import from local
 from src.mirror_bert import MirrorBERT
@@ -39,7 +42,7 @@ def parse_args():
     parser.add_argument('--model_dir', type=str, \
         help='Directory for pretrained model', \
         default="roberta-base")
-    parser.add_argument('--max_length', default=50, type=int)
+    parser.add_argument('--max_seq_length', default=50, type=int)
     parser.add_argument('--learning_rate', default=2e-5, type=float)
     parser.add_argument('--weight_decay', default=0.01, type=float)
     parser.add_argument('--train_batch_size', default=200, type=int)
@@ -47,15 +50,22 @@ def parse_args():
     parser.add_argument('--infoNCE_tau', default=0.04, type=float) 
     parser.add_argument('--agg_mode', default="cls", type=str, help="{cls|mean|mean_std}") 
     parser.add_argument('--use_cuda',  action="store_true")
-    parser.add_argument('--save_checkpoint_all', action="store_true")
-    parser.add_argument('--checkpoint_step', type=int, default=10000000)
     parser.add_argument('--parallel', action="store_true") 
     parser.add_argument('--amp', action="store_true", \
         help="automatic mixed precision training")
     parser.add_argument('--pairwise', action="store_true", \
         help="if loading pairwise formatted datasets") 
     parser.add_argument('--random_seed', default=42, type=int)
+    parser.add_argument('--description', type=str,
+                        help='Experiment description')
 
+
+    parser.add_argument('--tags', type=str,
+                        help='Annotation tags for wandb, comma separated')
+    parser.add_argument('--eval_steps', type=int, default=250,
+                        help='Frequency of model selection evaluation')
+    parser.add_argument('--metric_for_best_model', type=str, choices=[
+                        'sickr_spearman', 'stsb_spearman'], default='stsb_spearman', help='Metric for model selection')
     # data augmentation config
     parser.add_argument('--dropout_rate', default=0.1, type=float) 
     parser.add_argument('--drophead_rate', default=0.0, type=float)
@@ -63,6 +73,23 @@ def parse_args():
             help="number of chars to be randomly masked on one side of the input") 
 
     args = parser.parse_args()
+
+    if not (args.tags is None):
+        args.tags = [item for item in args.tags.split(',')]
+
+    if not(args.tags is None):
+        wandb.init(project=args.description, tags=arg.tags)
+
+    else:
+        wandb.init(project=args.description)
+
+    wandb.config.update({"Command Line": 'python '+' '.join(sys.argv[0:])})
+
+    if not(wandb.run.name is None):
+        output_name = wandb.run.name
+    else:
+        output_name = 'dummy-run'
+
     return args
 
 def init_logging():
@@ -74,7 +101,7 @@ def init_logging():
     LOGGER.addHandler(console)
 
 
-def train(args, data_loader, model, scaler=None, mirror_bert=None, step_global=0):
+def train(args, data_loader, model, tokenizer, scaler=None, mirror_bert=None, step_global=0, device='cuda'):
     LOGGER.info("train!")
 
     pairwise = args.pairwise
@@ -113,11 +140,98 @@ def train(args, data_loader, model, scaler=None, mirror_bert=None, step_global=0
         step_global += 1
 
         # save model every K iterations
-        if step_global % args.checkpoint_step == 0:
-            checkpoint_dir = os.path.join(args.output_dir, f"checkpoint_iter_{step_global}")
-            if not os.path.exists(checkpoint_dir):
-                os.makedirs(checkpoint_dir)
-            mirror_bert.save_model(checkpoint_dir)
+        # if step_global % args.checkpoint_step == 0:
+        #     checkpoint_dir = os.path.join(args.output_dir, f"checkpoint_iter_{step_global}")
+        #     if not os.path.exists(checkpoint_dir):
+        #         os.makedirs(checkpoint_dir)
+        #     mirror_bert.save_model(checkpoint_dir)
+
+        if step_global % args.eval_steps == 1 and step_global > 1:
+
+            mirror_bert.eval()
+
+            params = {'task_path': PATH_TO_DATA,
+                    'usepytorch': True, 'kfold': 5}
+            params['classifier'] = {'nhid': 0, 'optim': 'rmsprop', 'batch_size': 128,
+                                    'tenacity': 3, 'epoch_size': 2}
+
+            # SentEval prepare and batcher
+            def prepare(params, samples):
+                return
+
+            def batcher(params, batch, max_length=None):
+                # Handle rare token encoding issues in the dataset
+                if len(batch) >= 1 and len(batch[0]) >= 1 and isinstance(batch[0][0], bytes):
+                    batch = [[word.decode('utf-8')
+                                for word in s] for s in batch]
+
+                sentences = [' '.join(s) for s in batch]
+
+                # Tokenization
+                if max_length is not None:
+                    batch = tokenizer.batch_encode_plus(
+                        sentences,
+                        return_tensors='pt',
+                        padding=True,
+                        max_length=max_length,
+                        truncation=True
+                    )
+                else:
+                    batch = tokenizer.batch_encode_plus(
+                        sentences,
+                        return_tensors='pt',
+                        padding=True,
+                    )
+
+                # Move to the correct device
+                for k in batch:
+                    batch[k] = batch[k].to(device)
+
+                # Get raw embeddings
+                with torch.no_grad():
+                    # del batch['token_type_ids']
+                    # z = mirror_bert(**batch)
+                    # return z.cpu()
+                    outputs = mirror_bert(
+                        **batch, output_hidden_states=True, return_dict=True, sent_emb=True)
+                    pooler_output = outputs.pooler_output
+                    return pooler_output.cpu()
+
+            results = {}
+
+            for task in ['STSBenchmark', 'SICKRelatedness']:
+                se = senteval.engine.SE(params, batcher, prepare)
+                result = se.eval(task)
+                results[task] = result
+
+            stsb_spearman = results['STSBenchmark']['dev']['spearman'][0]
+            sickr_spearman = results['SICKRelatedness']['dev']['spearman'][0]
+            wandb.log({"eval/stsb_spearman": stsb_spearman,
+                        "eval/sickr_spearman": sickr_spearman, "eval/avg_sts": (stsb_spearman + sickr_spearman) / 2})
+            metrics = {"eval_stsb_spearman": stsb_spearman,
+                        "eval_sickr_spearman": sickr_spearman, "eval_avg_sts": (stsb_spearman + sickr_spearman) / 2}
+
+            # Determine the new best metric / best model checkpoint
+            if metrics is not None and args.metric_for_best_model is not None:
+                metric_to_check = args.metric_for_best_model
+                if not metric_to_check.startswith("eval_"):
+                    metric_to_check = f"eval_{metric_to_check}"
+                metric_value = metrics[metric_to_check]
+
+                operator = np.greater
+                if (
+                    best_metric is None
+                    or operator(metric_value, best_metric)
+                ):
+                    # update the best metric
+                    best_metric = metric_value
+
+                    # save the best (intermediate) model
+                    mirror_bert.save_pretrained(
+                        args.output_dir)  # Save model
+                    #bertflow = TransformerGlow.from_pretrained(FLAGS.output_dir)  # Load model
+                    tokenizer.save_pretrained(args.output_dir)
+
     train_loss /= (train_steps + 1e-9)
     return train_loss, step_global
     
@@ -137,7 +251,7 @@ def main(args):
     mirror_bert = MirrorBERT()
     encoder, tokenizer = mirror_bert.load_model(
         path=args.model_dir,
-        max_length=args.max_length,
+        max_length=args.max_seq_length,
         use_cuda=args.use_cuda,
         return_model=True
     )
@@ -171,14 +285,14 @@ def main(args):
         sent1, sent2 = zip(*batch)
         sent1_toks = tokenizer.batch_encode_plus(
             list(sent1), 
-            max_length=args.max_length, 
+            max_length=args.max_seq_length, 
             padding="max_length", 
             truncation=True,
             add_special_tokens=True,
             return_tensors="pt")
         sent2_toks = tokenizer.batch_encode_plus(
             list(sent2), 
-            max_length=args.max_length, 
+            max_length=args.max_seq_length,
             padding="max_length", 
             truncation=True,
             add_special_tokens=True,
@@ -212,20 +326,21 @@ def main(args):
         LOGGER.info(f"Epoch {epoch}/{args.epoch}")
 
         # train
-        train_loss, step_global = train(args, data_loader=train_loader, model=model, 
-                scaler=scaler, mirror_bert=mirror_bert, step_global=step_global)
+        train_loss, step_global = train(args, data_loader=train_loader, model=model, tokenizer=tokenizer,
+                scaler=scaler, mirror_bert=mirror_bert, step_global=step_global,)
         LOGGER.info(f'loss/train_per_epoch={train_loss}/{epoch}')
         
         # save model every epoch
-        if args.save_checkpoint_all:
-            checkpoint_dir = os.path.join(args.output_dir, f"checkpoint_{epoch}")
-            if not os.path.exists(checkpoint_dir):
-                os.makedirs(checkpoint_dir)
-            mirror_bert.save_model(checkpoint_dir)
+        # if args.save_checkpoint_all:
+        #     checkpoint_dir = os.path.join(args.output_dir, f"checkpoint_{epoch}")
+        #     if not os.path.exists(checkpoint_dir):
+        #         os.makedirs(checkpoint_dir)
+        #     mirror_bert.save_model(checkpoint_dir)
         
-        # save model last epoch
-        if epoch == args.epoch:
-            mirror_bert.save_model(args.output_dir)
+        # # save model last epoch
+        # if epoch == args.epoch:
+        #     mirror_bert.save_model(args.output_dir)
+
             
     end = time.time()
     training_time = end-start

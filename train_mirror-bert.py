@@ -26,7 +26,7 @@ from src.mirror_bert import MirrorBERT
 from src.data_loader import ContrastiveLearningDataset
 from src.contrastive_learning import ContrastiveLearningPairwise
 from src.drophead import set_drophead
-
+os.environ["TOKENIZERS_PARALLELISM"] = "false"
 LOGGER = logging.getLogger()
 
 def parse_args():
@@ -101,13 +101,14 @@ def init_logging():
     LOGGER.addHandler(console)
 
 
-def train(args, data_loader, model, tokenizer, scaler=None, mirror_bert=None, step_global=0, device='cuda'):
+def train(args, data_loader, model, scaler=None, mirror_bert=None, step_global=0, device='cuda'):
     LOGGER.info("train!")
 
     pairwise = args.pairwise
     
     train_loss = 0
     train_steps = 0
+    best_metric = None
     model.cuda()
     model.train()
     for i, data in tqdm(enumerate(data_loader), total=len(data_loader)):
@@ -148,7 +149,6 @@ def train(args, data_loader, model, tokenizer, scaler=None, mirror_bert=None, st
 
         if step_global % args.eval_steps == 1 and step_global > 1:
 
-            mirror_bert.eval()
 
             params = {'task_path': PATH_TO_DATA,
                     'usepytorch': True, 'kfold': 5}
@@ -169,7 +169,7 @@ def train(args, data_loader, model, tokenizer, scaler=None, mirror_bert=None, st
 
                 # Tokenization
                 if max_length is not None:
-                    batch = tokenizer.batch_encode_plus(
+                    batch = mirror_bert.get_tokenizer().batch_encode_plus(
                         sentences,
                         return_tensors='pt',
                         padding=True,
@@ -177,7 +177,7 @@ def train(args, data_loader, model, tokenizer, scaler=None, mirror_bert=None, st
                         truncation=True
                     )
                 else:
-                    batch = tokenizer.batch_encode_plus(
+                    batch = mirror_bert.get_tokenizer().batch_encode_plus(
                         sentences,
                         return_tensors='pt',
                         padding=True,
@@ -192,8 +192,11 @@ def train(args, data_loader, model, tokenizer, scaler=None, mirror_bert=None, st
                     # del batch['token_type_ids']
                     # z = mirror_bert(**batch)
                     # return z.cpu()
-                    outputs = mirror_bert(
-                        **batch, output_hidden_states=True, return_dict=True, sent_emb=True)
+                    #del batch['token_type_ids']
+                    #del batch['input_ids']
+                    #del batch['attention_mask']
+                    outputs = mirror_bert.get_encoder()(
+                        **batch, output_hidden_states=True, return_dict=True)
                     pooler_output = outputs.pooler_output
                     return pooler_output.cpu()
 
@@ -226,11 +229,10 @@ def train(args, data_loader, model, tokenizer, scaler=None, mirror_bert=None, st
                     # update the best metric
                     best_metric = metric_value
 
-                    # save the best (intermediate) model
-                    mirror_bert.save_pretrained(
+                    # save the best (intermediate) model and tokenizer
+                    mirror_bert.save_model(
                         args.output_dir)  # Save model
-                    #bertflow = TransformerGlow.from_pretrained(FLAGS.output_dir)  # Load model
-                    tokenizer.save_pretrained(args.output_dir)
+                 
 
     train_loss /= (train_steps + 1e-9)
     return train_loss, step_global
@@ -326,7 +328,7 @@ def main(args):
         LOGGER.info(f"Epoch {epoch}/{args.epoch}")
 
         # train
-        train_loss, step_global = train(args, data_loader=train_loader, model=model, tokenizer=tokenizer,
+        train_loss, step_global = train(args, data_loader=train_loader, model=model,
                 scaler=scaler, mirror_bert=mirror_bert, step_global=step_global,)
         LOGGER.info(f'loss/train_per_epoch={train_loss}/{epoch}')
         

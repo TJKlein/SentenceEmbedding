@@ -217,6 +217,8 @@ if __name__ == '__main__':
     for it in trange(int(FLAGS.num_train_epochs), desc="Epoch"):
 
         for step, batch in enumerate((train_dataloader)):
+            bertflow.train()
+            
             global_steps = global_steps + 1
             input_ids, attention_mask = (tens.to(device) for tens in batch)
 
@@ -227,6 +229,8 @@ if __name__ == '__main__':
             wandb.log({'train/loss': loss.item()})
 
             if global_steps % FLAGS.eval_steps == 1 and global_steps > 1:
+                
+                bertflow.eval()
 
                 params = {'task_path': PATH_TO_DATA,
                           'usepytorch': True, 'kfold': 5}

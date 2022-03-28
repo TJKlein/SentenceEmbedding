@@ -115,7 +115,7 @@ def main():
         # Get raw embeddings
         with torch.no_grad():
             del batch['token_type_ids']
-            z =  model.encode(batch)
+            z =  model(**batch)
             return z.cpu()
 
     results = {}

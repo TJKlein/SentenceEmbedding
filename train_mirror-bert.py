@@ -36,19 +36,19 @@ def parse_args():
     parser = argparse.ArgumentParser(description='train Mirror-BERT')
 
     # Required
-    parser.add_argument('--train_dir', type=str, required=True, help='training set directory')
+    parser.add_argument('--train_file', type=str, required=True, help='training set directory')
     parser.add_argument('--output_dir', type=str, required=True, help='Directory for output')
 
-    parser.add_argument('--model_dir', type=str, \
+    parser.add_argument('--model_name_or_path', type=str,
         help='Directory for pretrained model', \
         default="roberta-base")
     parser.add_argument('--max_seq_length', default=50, type=int)
     parser.add_argument('--learning_rate', default=2e-5, type=float)
     parser.add_argument('--weight_decay', default=0.01, type=float)
-    parser.add_argument('--train_batch_size', default=200, type=int)
-    parser.add_argument('--epoch', default=3, type=int)
+    parser.add_argument('--per_device_train_batch_size', default=200, type=int)
+    parser.add_argument('--num_train_epochs', default=3, type=int)
     parser.add_argument('--infoNCE_tau', default=0.04, type=float) 
-    parser.add_argument('--agg_mode', default="cls", type=str, help="{cls|mean|mean_std}") 
+    parser.add_argument('--pooler_type', default="cls", type=str, help="{cls|mean|mean_std}") 
     parser.add_argument('--use_cuda',  action="store_true")
     parser.add_argument('--parallel', action="store_true") 
     parser.add_argument('--amp', action="store_true", \
@@ -78,7 +78,7 @@ def parse_args():
         args.tags = [item for item in args.tags.split(',')]
 
     if not(args.tags is None):
-        wandb.init(project=args.description, tags=arg.tags)
+        wandb.init(project=args.description, tags=args.tags)
 
     else:
         wandb.init(project=args.description)
@@ -89,6 +89,9 @@ def parse_args():
         output_name = wandb.run.name
     else:
         output_name = 'dummy-run'
+
+    args.output_dir = os.path.join(
+        args.output_dir, output_name)
 
     return args
 
@@ -101,14 +104,14 @@ def init_logging():
     LOGGER.addHandler(console)
 
 
-def train(args, data_loader, model, scaler=None, mirror_bert=None, step_global=0, device='cuda'):
+def train(args, data_loader, model, scaler=None, mirror_bert=None, step_global=0, device='cuda', best_metric=None, max_avg_sts=0, max_sickr_spearman=0, max_stsb_spearman=0):
     LOGGER.info("train!")
 
     pairwise = args.pairwise
     
     train_loss = 0
     train_steps = 0
-    best_metric = None
+    
     model.cuda()
     model.train()
     for i, data in tqdm(enumerate(data_loader), total=len(data_loader)):
@@ -209,11 +212,17 @@ def train(args, data_loader, model, scaler=None, mirror_bert=None, step_global=0
 
             stsb_spearman = results['STSBenchmark']['dev']['spearman'][0]
             sickr_spearman = results['SICKRelatedness']['dev']['spearman'][0]
-            wandb.log({"eval/stsb_spearman": stsb_spearman,
-                        "eval/sickr_spearman": sickr_spearman, "eval/avg_sts": (stsb_spearman + sickr_spearman) / 2})
-            metrics = {"eval_stsb_spearman": stsb_spearman,
-                        "eval_sickr_spearman": sickr_spearman, "eval_avg_sts": (stsb_spearman + sickr_spearman) / 2}
+            
+            max_avg_sts = np.max(
+                [max_avg_sts, (stsb_spearman + sickr_spearman) / 2])
+            max_stsb_spearman = np.max(
+                [max_stsb_spearman, stsb_spearman])
+            max_sickr_spearman = np.max(
+                [max_sickr_spearman, sickr_spearman])
 
+            metrics = {"eval_maxavg_sts": max_avg_sts, "eval_maxsickr_spearman": max_sickr_spearman,   "eval_maxstsb_spearman": max_stsb_spearman, "eval_stsb_spearman": stsb_spearman,
+                    "eval_sickr_spearman": sickr_spearman, "eval_avg_sts": (stsb_spearman + sickr_spearman) / 2}
+            wandb.log(metrics)
             # Determine the new best metric / best model checkpoint
             if metrics is not None and args.metric_for_best_model is not None:
                 metric_to_check = args.metric_for_best_model
@@ -235,7 +244,7 @@ def train(args, data_loader, model, scaler=None, mirror_bert=None, step_global=0
                  
 
     train_loss /= (train_steps + 1e-9)
-    return train_loss, step_global
+    return train_loss, step_global, best_metric, max_avg_sts, max_sickr_spearman, max_stsb_spearman
     
 def main(args):
     init_logging()
@@ -252,7 +261,7 @@ def main(args):
     # load BERT tokenizer, dense_encoder
     mirror_bert = MirrorBERT()
     encoder, tokenizer = mirror_bert.load_model(
-        path=args.model_dir,
+        path=args.model_name_or_path,
         max_length=args.max_seq_length,
         use_cuda=args.use_cuda,
         return_model=True
@@ -276,7 +285,7 @@ def main(args):
         weight_decay=args.weight_decay,
         use_cuda=args.use_cuda,
         infoNCE_tau=args.infoNCE_tau,
-        agg_mode=args.agg_mode,
+        agg_mode=args.pooler_type,
     )
 
     if args.parallel:
@@ -302,14 +311,14 @@ def main(args):
         return sent1_toks, sent2_toks
 
     train_set = ContrastiveLearningDataset(
-        path=args.train_dir,
+        path=args.train_file,
         tokenizer=tokenizer,
         random_span_mask=args.random_span_mask,
         pairwise=args.pairwise
     )
     train_loader = torch.utils.data.DataLoader(
         train_set,
-        batch_size=args.train_batch_size,
+        batch_size=args.per_device_train_batch_size,
         shuffle=True,
         num_workers=16,
         collate_fn=collate_fn_batch_encoding_pairwise,
@@ -324,12 +333,16 @@ def main(args):
 
     start = time.time()
     step_global = 0
-    for epoch in range(1,args.epoch+1):
-        LOGGER.info(f"Epoch {epoch}/{args.epoch}")
+    max_avg_sts = 0
+    max_sickr_spearman = 0
+    max_stsb_spearman = 0
+    best_metric = None
+    for epoch in range(1,args.num_train_epochs+1):
+        LOGGER.info(f"Epoch {epoch}/{args.num_train_epochs}")
 
         # train
-        train_loss, step_global = train(args, data_loader=train_loader, model=model,
-                scaler=scaler, mirror_bert=mirror_bert, step_global=step_global,)
+        train_loss, step_global, best_metric, max_avg_sts, max_sickr_spearman, max_stsb_spearman = train(args, data_loader=train_loader, model=model,
+                                                                                      scaler=scaler, mirror_bert=mirror_bert, step_global=step_global, best_metric=best_metric, max_avg_sts=max_avg_sts, max_sickr_spearman=max_sickr_spearman,max_stsb_spearman=max_stsb_spearman)
         LOGGER.info(f'loss/train_per_epoch={train_loss}/{epoch}')
         
         # save model every epoch
@@ -340,7 +353,7 @@ def main(args):
         #     mirror_bert.save_model(checkpoint_dir)
         
         # # save model last epoch
-        # if epoch == args.epoch:
+        # if epoch == args.num_train_epochs:
         #     mirror_bert.save_model(args.output_dir)
 
             

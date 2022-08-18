@@ -17,6 +17,10 @@ class ESimCSEModel(nn.Module):
         self.bert = BertModel.from_pretrained(pretrained_model, config=config)
         self.pooling = pooling
 
+    def save_model(self, path):
+        # save bert model, bert config
+        self.bert.save_pretrained(path)
+
     def forward(self, input_ids, attention_mask, token_type_ids):
         out = self.bert(input_ids, attention_mask,
                         token_type_ids, output_hidden_states=True)

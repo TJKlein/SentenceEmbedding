@@ -64,16 +64,16 @@ parser.add_argument('--max_seq_length', type=int, default=32,
 parser.add_argument('--overwrite_output_dir', type=bool, default=True,
                     help="If data in output directory should be overwritten if already existing.")
 parser.add_argument('--dropout', type=float, default=0.1, help="dropout rate for encoder")
-parser.add_argument('--learning_rate', default=2e-5,
+parser.add_argument('--learning_rate', default=3e-5,
                     type=float, help='SGD learning rate')
 parser.add_argument('--weight_decay', default=0.01, type=float)
-parser.add_argument('--gamma', default=0.95, help="Moment encoder factor")
-parser.add_argument('--dup_rate', type=float, default=0.15)
-parser.add_argument("--q_size", type=int, default=64)
-parser.add_argument('--num_train_epochs', type=int, default=3,
+parser.add_argument('--gamma', default=0.995, help="Moment encoder factor")
+parser.add_argument('--dup_rate', type=float, default=0.32)
+parser.add_argument("--q_size", type=int, default=80)
+parser.add_argument('--num_train_epochs', type=int, default=1,
                     help='Number of trainin epochs')
 parser.add_argument('--per_device_train_batch_size', type=int,
-                    default=64, help='Batch size for training')
+                    default=32, help='Batch size for training')
 parser.add_argument('--description', type=str, help='Experiment description')
 parser.add_argument('--tags', type=str,
                     help='Annotation tags for wandb, comma separated')
@@ -232,7 +232,7 @@ if __name__ == '__main__':
     # trai nthe model
     for it in trange(int(FLAGS.num_train_epochs), desc="Epoch"):
 
-        for step, (batch_src_source, batch_pos_source, batch_neg_source)  in enumerate((train_dataloader)):
+        for step, (batch_src_source, batch_pos_source, batch_neg_source)  in enumerate(tqdm(train_dataloader, desc="Steps")):
             model.train()
 
             global_steps = global_steps + 1
@@ -326,8 +326,8 @@ if __name__ == '__main__':
 
                     # Get raw embeddings
                     with torch.no_grad():
-                        del batch['token_type_ids']
-                        z = bertflow(**batch)
+                        #el batch['token_type_ids']
+                        z = model(**batch)
                         return z.cpu()
 
                 results = {}
@@ -360,9 +360,8 @@ if __name__ == '__main__':
                         best_metric = metric_value
 
                         # save the best (intermediate) model
-                        bertflow.save_pretrained(
+                        model.save_model(
                             FLAGS.output_dir)  # Save model
-                        #bertflow = TransformerGlow.from_pretrained(FLAGS.output_dir)  # Load model
                         tokenizer.save_pretrained(FLAGS.output_dir)
 
 

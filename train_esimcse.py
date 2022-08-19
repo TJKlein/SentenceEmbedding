@@ -64,6 +64,7 @@ parser.add_argument('--max_seq_length', type=int, default=32,
 parser.add_argument('--overwrite_output_dir', type=bool, default=True,
                     help="If data in output directory should be overwritten if already existing.")
 parser.add_argument('--dropout', type=float, default=0.1, help="dropout rate for encoder")
+parser.add_argument('--dup_level', type=str, default="subword", help="Level of duplication: word, subword")
 parser.add_argument('--learning_rate', default=3e-5,
                     type=float, help='SGD learning rate')
 parser.add_argument('--weight_decay', default=0.01, type=float)
@@ -213,7 +214,7 @@ if __name__ == '__main__':
     # train_sampler = RandomSampler(train_data)
 
     train_call_func = CollateFunc(
-        tokenizer, max_len=FLAGS.max_seq_length, q_size=FLAGS.q_size, dup_rate=FLAGS.dup_rate)
+        tokenizer, repetition=FLAGS.dup_level, max_len=FLAGS.max_seq_length, q_size=FLAGS.q_size, dup_rate=FLAGS.dup_rate)
     train_dataloader = DataLoader(train_dataset, shuffle=True, batch_size=FLAGS.per_device_train_batch_size, num_workers=12,
                                   collate_fn=train_call_func)
 

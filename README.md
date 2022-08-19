@@ -2,9 +2,14 @@
 
 Simple and lean implementation for computing sentence embeddings for different transformer-based models. BERT-flow implementation based on the code from [repository](https://github.com/UKPLab/pytorch-bertflow). Contrastive tension implementation based on the implementation of [Sentence Transformers](https://github.com/UKPLab/sentence-transformers).
 
-Among other thins changes comprise:
-* Added monitoring ([Weights and Biases](https://wandb.ai), which of course can be replaced by any other monitorsing service)
+Among other things changes comprise:
+* Added monitoring ([Weights and Biases](https://wandb.ai), which of course can be replaced by any other monitoring service)
 * Added evaluation ([SentEval](https://github.com/facebookresearch/SentEval)) script
+
+#### News
+- **08/19/2022:** :confetti_ball: Added Enhanced SimCSE (ESimCSE) :tada:
+- 03/01/2022: Added Mirror-Bert
+- 02/01/2022: Added Contrastive Tension (CT)
 
 ## Usage:
 
@@ -43,5 +48,12 @@ Running evaluation on [SentEval](https://github.com/facebookresearch/SentEval), 
 
 ```
 sh eval_ct.sh <path to contrastive tensions model>
+```
+
+### Enhanced SimCSE Training
+
+Training a bert-base-uncased ESimCDSE model using some training text file text_file.txt
+```
+python train_esimcse.py --model_name_or_path bert-base-uncased --train_file text_file.txt --output_dir result --num_train_epochs 1 --max_seq_length 50 --per_device_train_batch_size 64
 ```
 

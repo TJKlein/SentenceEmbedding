@@ -45,3 +45,10 @@ Running evaluation on [SentEval](https://github.com/facebookresearch/SentEval), 
 sh eval_ct.sh <path to contrastive tensions model>
 ```
 
+### Enhanced SimCSE Training
+
+Training a bert-base-uncased ESimCDSE model using some training text file text_file.txt
+```
+python train_esimcse.py --model_name_or_path bert-base-uncased --train_file text_file.txt --output_dir result --num_train_epochs 1 --max_seq_length 50 --per_device_train_batch_size 64
+```
+

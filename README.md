@@ -6,6 +6,11 @@ Among other things changes comprise:
 * Added monitoring ([Weights and Biases](https://wandb.ai), which of course can be replaced by any other monitoring service)
 * Added evaluation ([SentEval](https://github.com/facebookresearch/SentEval)) script
 
+#### News
+- **08/19/2022:** :confetti_ball: Added Enhanced SimCSE (ESimCSE) :tada:
+- 03/01/2022: Added Mirror-Bert
+- 02/01/2022: Added Contrastive Tension (CT)
+
 ## Usage:
 
 ### Instalation of requirements

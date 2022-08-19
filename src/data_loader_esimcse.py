@@ -27,7 +27,7 @@ class CollateFunc(object):
     def word_repetition_normal(self, batch_text):
         dst_text = list()
         for text in batch_text:
-            actual_len = len(text)
+            actual_len = len(text.split())
             if actual_len > 2:
                 dup_len = random.randint(a=0, b=max(
                     1, int(np.floor(self.dup_rate * actual_len))))
@@ -35,10 +35,16 @@ class CollateFunc(object):
                     list(range(1, actual_len)), k=dup_len)
 
                 dup_text = ''
-                for index, word in enumerate(text):
-                    dup_text += word
-                    if index in dup_word_index:
+                for index, word in enumerate(text.split()):
+                    if index > 0:
+                        dup_text += ' ' +word
+                    else:
                         dup_text += word
+                    if index in dup_word_index:
+                        if index > 0:
+                            dup_text += " " + word
+                        else:
+                            dup_text += " " + word
                 dst_text.append(dup_text)
             else:
                 dst_text.append(text)

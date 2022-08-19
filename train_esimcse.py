@@ -39,7 +39,7 @@ import wandb
 import os
 import argparse
 from transformers import AutoTokenizer
-from src.ESimCSE import ESimCSEModel, MomentumEncoder, MultiNegativeRankingLoss
+from src.ESimCSE import ESimCSEModel, MomentumEncoder, MultiNegativeRankingLoss, Similarity
 from src.data_loader_esimcse import TrainDataset, CollateFunc
 #import senteval
 import random
@@ -67,8 +67,9 @@ parser.add_argument('--dropout', type=float, default=0.1, help="dropout rate for
 parser.add_argument('--learning_rate', default=3e-5,
                     type=float, help='SGD learning rate')
 parser.add_argument('--weight_decay', default=0.01, type=float)
-parser.add_argument('--gamma', default=0.995, help="Moment encoder factor")
+parser.add_argument('--gamma', default=0.95, type=float, help="Moment encoder factor")
 parser.add_argument('--dup_rate', type=float, default=0.32)
+parser.add_argument('--temp', type=float, default=0.05, help="Temperature for similarity")
 parser.add_argument("--q_size", type=int, default=80)
 parser.add_argument('--num_train_epochs', type=int, default=1,
                     help='Number of trainin epochs')
@@ -216,7 +217,7 @@ if __name__ == '__main__':
     train_dataloader = DataLoader(train_dataset, shuffle=True, batch_size=FLAGS.per_device_train_batch_size, num_workers=12,
                                   collate_fn=train_call_func)
 
-    model = ESimCSEModel(pretrained_model=FLAGS.model_name_or_path, pooling=FLAGS.pooler, dropout=FLAGS.dropout).to(device)
+    model = ESimCSEModel(pretrained_model=FLAGS.model_name_or_path, pooler_type=FLAGS.pooler, dropout=FLAGS.dropout).to(device)
     momentum_encoder = MomentumEncoder(
         FLAGS.model_name_or_path, FLAGS.pooler).to(device)
 
@@ -224,11 +225,14 @@ if __name__ == '__main__':
                                   lr=FLAGS.learning_rate, weight_decay=FLAGS.weight_decay)
 
     model.train()
-    ESimCSELoss = MultiNegativeRankingLoss()
-    criterion = ESimCSELoss.multi_negative_ranking_loss
+    #ESimCSELoss = MultiNegativeRankingLoss()
+    #criterion = ESimCSELoss.multi_negative_ranking_loss
+    criterion = torch.nn.CrossEntropyLoss()
     # variables for monitoring
     global_steps = 0
     best_metric = None
+
+    sim = Similarity(temp=FLAGS.temp)
     # trai nthe model
     for it in trange(int(FLAGS.num_train_epochs), desc="Epoch"):
 
@@ -262,8 +266,15 @@ if __name__ == '__main__':
                 src_out = model(input_ids_src, attention_mask_src, token_type_ids_src)
                 pos_out = model(input_ids_pos, attention_mask_pos, token_type_ids_pos)
 
+            if neg_out is not None:
+                pos_out = torch.cat([pos_out, neg_out], dim=0)
 
-            loss = criterion(src_out, pos_out, neg_out)
+            # print(embed_src.shape, embed_pos.shape)
+            cos_sim = sim(src_out.unsqueeze(1), pos_out.unsqueeze(0))
+
+            #loss = criterion(src_out, pos_out, neg_out)
+            labels = torch.arange(cos_sim.size(0)).long().to(device)
+            loss = criterion(cos_sim, labels)
             optimizer.zero_grad()
 
             if FLAGS.amp:

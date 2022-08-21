@@ -67,7 +67,7 @@ parser.add_argument('--dropout', type=float, default=0.1, help="dropout rate for
 parser.add_argument('--dup_level', type=str, default="subword", help="Level of duplication: word, subword")
 parser.add_argument('--learning_rate', default=3e-5,
                     type=float, help='SGD learning rate')
-parser.add_argument('--weight_decay', default=0.01, type=float)
+parser.add_argument('--weight_decay', default=0.0, type=float)
 parser.add_argument('--gamma', default=0.95, type=float, help="Moment encoder factor")
 parser.add_argument('--dup_rate', type=float, default=0.32)
 parser.add_argument('--temp', type=float, default=0.05, help="Temperature for similarity")

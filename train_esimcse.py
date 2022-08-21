@@ -267,11 +267,14 @@ if __name__ == '__main__':
                 src_out = model(input_ids_src, attention_mask_src, token_type_ids_src)
                 pos_out = model(input_ids_pos, attention_mask_pos, token_type_ids_pos)
 
-            if neg_out is not None:
-                pos_out = torch.cat([pos_out, neg_out], dim=0)
 
             # print(embed_src.shape, embed_pos.shape)
             cos_sim = sim(src_out.unsqueeze(1), pos_out.unsqueeze(0))
+
+            # Hard negative
+            if neg_out is not None:
+                tmp = sim(src_out.unsqueeze(1), neg_out.unsqueeze(0))
+                cos_sim = torch.cat([cos_sim, tmp], 1)
 
             #loss = criterion(src_out, pos_out, neg_out)
             labels = torch.arange(cos_sim.size(0)).long().to(device)

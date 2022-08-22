@@ -168,6 +168,7 @@ if __name__ == '__main__':
     # pooling could be 'mean', 'max', 'cls' or 'first-last-avg' (mean pooling over the first and the last layers)
     tokenizer = AutoTokenizer.from_pretrained(FLAGS.model_name_or_path)
 
+    print(os.path.split(os.path.relpath(FLAGS.train_file))[1])
     datasets = load_dataset(path=os.path.split(os.path.abspath(FLAGS.train_file))[
                             0], data_files=os.path.split(os.path.abspath(FLAGS.train_file))[1], cache_dir="./data/")
     column_names = datasets["train"].column_names
@@ -220,7 +221,7 @@ if __name__ == '__main__':
 
     model = ESimCSEModel(pretrained_model=FLAGS.model_name_or_path, pooler_type=FLAGS.pooler, dropout=FLAGS.dropout).to(device)
     momentum_encoder = MomentumEncoder(
-        FLAGS.model_name_or_path, FLAGS.pooler).to(device)
+        FLAGS.model_name_or_path, FLAGS.pooler, FLAGS.dropout).to(device)
 
     optimizer = torch.optim.AdamW([{'params': model.parameters()}, ],
                                   lr=FLAGS.learning_rate, weight_decay=FLAGS.weight_decay)
@@ -250,14 +251,14 @@ if __name__ == '__main__':
             if batch_neg_source:
                 input_ids_neg, attention_mask_neg, token_type_ids_neg = get_bert_input(
                     batch_neg_source, device)
-                
-                if FLAGS.amp:
-                    with autocast():
+                with torch.no_grad():
+                    if FLAGS.amp:
+                        with autocast():
+                            neg_out = momentum_encoder(
+                            input_ids_neg, attention_mask_neg, token_type_ids_neg)
+                    else:
                         neg_out = momentum_encoder(
-                        input_ids_neg, attention_mask_neg, token_type_ids_neg)
-                else:
-                    neg_out = momentum_encoder(
-                        input_ids_neg, attention_mask_neg, token_type_ids_neg)
+                            input_ids_neg, attention_mask_neg, token_type_ids_neg)
 
             if FLAGS.amp:
                 with autocast():

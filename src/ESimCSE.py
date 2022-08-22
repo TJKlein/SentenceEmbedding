@@ -140,8 +140,9 @@ class ESimCSEModel(nn.Module):
 class MomentumEncoder(ESimCSEModel):
     """ MomentumEncoder """
 
-    def __init__(self, pretrained_model, pooling):
-        super(MomentumEncoder, self).__init__(pretrained_model, pooling)
+    def __init__(self, pretrained_model, pooling, dropout):
+        super(MomentumEncoder, self).__init__(
+            pretrained_model, pooling, dropout)
 
 
 class MultiNegativeRankingLoss(nn.Module):
